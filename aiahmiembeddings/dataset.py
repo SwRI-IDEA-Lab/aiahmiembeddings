@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 import numpy as np
 from sdo_augmentation.augmentation import Augmentations
 from sdo_augmentation.augmentation_list import AugmentationList
-from search_utils.image_utils import read_image
+import xarray as xr
 
 class SDOTilesDataset(Dataset):
     '''
@@ -38,7 +38,7 @@ class SDOTilesDataset(Dataset):
                 datatype (numpy.dtype): datatype to use for the images
         '''
         self.data_path = data_path
-        self.image_files = glob.glob(data_path + "/**/*.jpg", recursive=True)
+        self.image_files = xr.open_zarr(self.data_path)
         if data_stride>1:
             self.image_files = self.image_files[::data_stride]
         self.augmentation_list = AugmentationList(instrument="euv")

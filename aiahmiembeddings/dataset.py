@@ -4,11 +4,17 @@
 '''
 
 import glob
+import torch
 from torch.utils.data import Dataset
 import numpy as np
 from sdo_augmentation.augmentation import Augmentations
 from sdo_augmentation.augmentation_list import AugmentationList
+
 import xarray as xr
+from typing import Optional, List
+from datetime import timedelta
+import numpy as np
+import pandas as pd
 
 class SDOTilesDataset(Dataset):
     '''
@@ -21,8 +27,13 @@ class SDOTilesDataset(Dataset):
         It performs single or double augmentation on each patch using
         the augmentation modules of the packager
     '''
-    def __init__(self, data_path: str, augmentation: str='single',
-                 data_stride:int = 1, datatype=np.float32):
+    def __init__(self, data_path: str, 
+                 augmentation: str='single',
+                 data_stride:int = 1, 
+                 datatype=np.float32,
+                 zarr_group:str='aia_hmi',
+                 channel = 'aia094'
+                 ):
         '''
             Initializes image files in the dataset
             
@@ -36,17 +47,24 @@ class SDOTilesDataset(Dataset):
                 data_stride (int): stride to use when loading the images to work 
                                     with a reduced version of the data
                 datatype (numpy.dtype): datatype to use for the images
+                zarr_group (str): group name in zarr dataset containing HMI data
         '''
         self.data_path = data_path
-        self.image_files = xr.open_zarr(self.data_path)
+        self.zarr_group = zarr_group
+        self.data = xr.open_zarr(self.data_path)
+        self.channel = self.data.channel.loc[channel].data
+        self.image_files = self.data[self.zarr_group].loc[:,self.channel,:,:]
         if data_stride>1:
             self.image_files = self.image_files[::data_stride]
         self.augmentation_list = AugmentationList(instrument="euv")
         self.augmentation_list.keys.remove('brighten')
         self.datatype=datatype
         self.augmentation = augmentation
-        if self.augmentation is None:
-            self.augmentation = 'none'
+        # if self.augmentation is None:
+        #     self.augmentation = 'none'
+
+        self.n_samples = len(self.image_files)
+        
 
     def __len__(self):
         '''
@@ -55,8 +73,8 @@ class SDOTilesDataset(Dataset):
             Returns:
                 int: number of images in the dataset
         '''
-        return len(self.image_files)
-
+        return self.n_samples
+    
     def __getitem__(self, idx):
         '''
             Retrieves an image from the dataset and creates a copy of it,
@@ -70,10 +88,20 @@ class SDOTilesDataset(Dataset):
                 of the input and image can be the original image, or another augmented
                 modification, in which case image2 is double augmented
         '''
-        image = read_image(image_loc = self.image_files[idx],
-                           image_format="jpg")
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
 
-        if self.augmentation.lower() != 'none':
+        if isinstance(idx, int):
+            assert idx < self.n_samples, f'Trying to access sample {idx}'
+            f'of dataset with {self.n_samples} samples'
+        else:
+            for i in idx:
+                assert i < self.n_samples, f'Trying to access sample {i}'
+                f'of dataset with {self.n_samples} samples'
+
+        image = self.image_files[idx].load().data
+
+        if self.augmentation.lower() is not None:
             # image2 = image.copy()
 
             aug = Augmentations(image, self.augmentation_list.randomize())

@@ -5,6 +5,11 @@
 import unittest
 import os
 import numpy as np
+
+script_dir = os.path.dirname(__file__) # directory of script
+ws_dir = os.path.dirname(script_dir)   # workspace directory
+os.chdir(ws_dir)                       # change cwd to workspace directory
+
 from aiahmiembeddings.dataset import SDOTilesDataset
 
 class DataloaderTest(unittest.TestCase):
@@ -98,5 +103,5 @@ class DataloaderTest(unittest.TestCase):
         '''
         del self.sdo_database
 
-if __name__ == "__main__":
-    unittest.main()
+# if __name__ == "__main__":
+#     unittest.main()
